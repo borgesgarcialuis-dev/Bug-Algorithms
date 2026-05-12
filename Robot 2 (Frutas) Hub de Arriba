@@ -1,0 +1,49 @@
+from hub import light_matrix, port, motion_sensor
+import runloop, color_sensor, motor, motor_pair, color, time
+
+
+async def main():
+    
+    await runloop.sleep_ms(12000)
+    await motor.run_to_relative_position(port.E, 0, 100)
+
+    for i in range(6):
+        print("Iniciando ciclo de detección número:", i + 1)
+
+        color_detectado = -1
+
+        while True:
+            lectura = color_sensor.color(port.A)
+            if lectura in [color.BLACK, color.GREEN, color.RED]:
+                color_detectado = lectura
+                ultimo_color_visto = lectura # Guardamos el color actual como el "último"
+                break
+            await runloop.sleep_ms(250)
+
+
+        if color_detectado == color.BLACK or color_detectado == color.GREEN:
+            print("Color Negro o Verde: Movimiento estándar")
+            await runloop.sleep_ms(600)
+            await motor.run_to_absolute_position(port.D, 60, 500)
+            await motor.run_for_degrees(port.C, 120, 200)
+            await motor.run_for_degrees(port.C, -120, 500)
+            await motor.run_to_relative_position(port.D, 0, 500)
+
+        elif color_detectado == color.RED:
+            print("Color Rojo: Movimiento inverso")
+            await runloop.sleep_ms(600)
+            await motor.run_for_degrees(port.C, 120, 200)
+            await motor.run_for_degrees(port.C, -120, 500)
+            await motor.run_to_absolute_position(port.D, 60, 500)
+            await motor.run_to_relative_position(port.D, 0, 500)
+
+
+    await runloop.sleep_ms(200)
+    
+    await motor.run_to_absolute_position(port.E, 240, 1100)
+
+
+
+    
+
+runloop.run(main())
