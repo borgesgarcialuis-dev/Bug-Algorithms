@@ -1,0 +1,127 @@
+from hub import light_matrix, port, motion_sensor
+import runloop, color_sensor, motor, motor_pair, color, time
+
+async def move_straight(duration_ms, velocity=200):
+    """
+    Avanza recto usando el giroscopio por un tiempo determinado
+    duration_ms: tiempo de movimiento en milisegundos
+    velocity: velocidad base de los motores (0-1000)
+    """
+    # Resetear y estabilizar el giroscopio
+    motion_sensor.reset_yaw(0)
+    await runloop.until(motion_sensor.stable)
+
+    start_time = time.ticks_ms()
+
+    while time.ticks_diff(time.ticks_ms(), start_time) < duration_ms:
+        # Calcular error y corrección
+        error = motion_sensor.tilt_angles()[0] * -0.1
+        correction = int(error * -2)
+
+        # Aplicar corrección manteniendo la velocidad base
+        motor_pair.move(motor_pair.PAIR_1, correction, velocity=velocity)
+
+        await runloop.sleep_ms(10)
+
+    # Detener los motores al finalizar
+    motor_pair.stop(motor_pair.PAIR_1, stop=motor.BRAKE)
+
+
+
+
+async def gyro_turn(degrees, speed=600):
+    #Positivo=derecha, negativo=izquierda
+
+    # Resetear el giroscopio
+    motion_sensor.set_yaw_face(0)
+
+    # Determinar dirección
+    if degrees > 0:
+        # Giro a la derecha (motor izquierdo adelante, derecho atrás)
+        motor_pair.move_tank(motor_pair.PAIR_1, speed, -speed)
+    else:
+        # Giro a la izquierda (motor izquierdo atrás, derecho adelante)
+        motor_pair.move_tank(motor_pair.PAIR_1, -speed, speed)
+
+    # Esperar hasta alcanzar el ángulo deseado
+    while abs(motion_sensor.tilt_angles()[0]/10) < abs(degrees):
+        # Ajustar velocidad al acercarse al objetivo
+        remaining = abs(degrees) - abs(motion_sensor.tilt_angles()[0]/10)
+        if remaining < 20:
+            adjusted_speed = int(speed * (remaining / 20))
+            if degrees > 0:
+                motor_pair.move_tank(motor_pair.PAIR_1, adjusted_speed, -adjusted_speed)
+            else:
+                motor_pair.move_tank(motor_pair.PAIR_1, -adjusted_speed, adjusted_speed)
+        await runloop.sleep_ms(10)
+
+    # Detener motores
+    motor_pair.stop(motor_pair.PAIR_1)
+
+async def main():
+    # Configuración inicial
+    motor_pair.unpair(motor_pair.PAIR_1)
+    motor_pair.pair(motor_pair.PAIR_1, port.B, port.A)
+
+    motor.run_to_absolute_position(port.D, 0, 500, stop=motor.BRAKE)
+    await motor_pair.move_for_degrees(motor_pair.PAIR_1, -50, 0, velocity=100, stop=motor.SMART_BRAKE)
+    await move_straight(1380, 500)
+
+    # Variable para guardar el último color detectado fuera del bucle
+    ultimo_color_visto = -1
+
+    # --- REPETICIÓN: 6 veces el proceso de detectar y agarrar ---
+    for i in range(6):
+        print("Iniciando ciclo de detección número:", i + 1)
+
+        motor_pair.move_tank(motor_pair.PAIR_1, 506, 500)
+        color_detectado = -1
+
+        while True:
+            lectura = color_sensor.color(port.C)
+            if lectura in [color.BLACK, color.GREEN, color.RED]:
+                color_detectado = lectura
+                ultimo_color_visto = lectura # Guardamos el color actual como el "último"
+                break
+            await runloop.sleep_ms(10)
+
+        motor_pair.stop(motor_pair.PAIR_1, stop=motor.SMART_BRAKE)
+
+        if color_detectado == color.RED:
+            print("Color Rojo o Verde: Movimiento estándar")
+            await motor.run_for_degrees(port.D, 40, 300)
+            await move_straight(300, 1100)
+            motor.run_to_absolute_position(port.D, 0, 1100, stop=motor.BRAKE)
+
+        elif color_detectado == color.BLACK or color_detectado == color.GREEN:
+            print("Color Negro: Movimiento inverso")
+            await motor.run_for_degrees(port.D, -40, 300)
+            await move_straight(300, 1100)
+            motor.run_to_absolute_position(port.D, 0, 1100, stop=motor.BRAKE)
+            
+        await runloop.sleep_ms(200)
+
+    await motor_pair.move_for_degrees(motor_pair.PAIR_1, -20, 0, velocity=100, stop=motor.SMART_BRAKE)
+    await motor_pair.move_for_degrees(motor_pair.PAIR_1, 80, 0, velocity=100, stop=motor.SMART_BRAKE)
+    await runloop.sleep_ms(6000)
+    await motor_pair.move_for_degrees(motor_pair.PAIR_1, -200, 0, velocity=100, stop=motor.SMART_BRAKE)
+    await motor_pair.move_for_degrees(motor_pair.PAIR_1, 80, 0, velocity=100, stop=motor.SMART_BRAKE)
+    await runloop.sleep_ms(6000)
+    await motor_pair.move_for_degrees(motor_pair.PAIR_1, -200, 0, velocity=100, stop=motor.SMART_BRAKE)
+    await motor_pair.move_for_degrees(motor_pair.PAIR_1, 80, 0, velocity=100, stop=motor.SMART_BRAKE)
+    await runloop.sleep_ms(6000)
+    await motor_pair.move_for_degrees(motor_pair.PAIR_1, -200, 0, velocity=100, stop=motor.SMART_BRAKE)
+    await motor_pair.move_for_degrees(motor_pair.PAIR_1, 80, 0, velocity=100, stop=motor.SMART_BRAKE)
+    await runloop.sleep_ms(6000)
+    await motor_pair.move_for_degrees(motor_pair.PAIR_1, -200, 0, velocity=100, stop=motor.SMART_BRAKE)
+    await motor_pair.move_for_degrees(motor_pair.PAIR_1, 80, 0, velocity=100, stop=motor.SMART_BRAKE)
+    await runloop.sleep_ms(6000)
+    await motor_pair.move_for_degrees(motor_pair.PAIR_1, -200, 0, velocity=100, stop=motor.SMART_BRAKE)
+    await motor_pair.move_for_degrees(motor_pair.PAIR_1, 80, 0, velocity=100, stop=motor.SMART_BRAKE)
+    await runloop.sleep_ms(6000)
+
+
+    await motor_pair.move_for_degrees(motor_pair.PAIR_1, -1000, 0, velocity=1100, stop=motor.SMART_BRAKE, deceleration=1100)
+
+
+runloop.run(main())
